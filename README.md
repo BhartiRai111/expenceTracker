@@ -54,6 +54,7 @@ Open your web browser and navigate to `http://localhost:8080`.
 ![Example Image](screenshots/10.png) <br>
 ![Example Image](screenshots/11.png) <br>
 ![Example Image](screenshots/12.png) <br>
+![Example Image](screenshots/13.png) <br>
 
 ## Contributions
 Contributions are welcome! If you find a bug or have suggestions for improvement, feel free to open an issue or create a pull request.
