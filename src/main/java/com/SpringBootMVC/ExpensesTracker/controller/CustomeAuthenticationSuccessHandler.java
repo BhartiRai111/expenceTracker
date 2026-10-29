@@ -36,13 +36,11 @@ public class CustomeAuthenticationSuccessHandler implements AuthenticationSucces
             response.sendRedirect("/showLoginPage?error");
             return;
         }
-        Client client = clientService.findClientById(user.getId());
         HttpSession session = request.getSession(false);
         if (session == null) {
             session = request.getSession(true);
         }
         // ✅ session attribute set
-        session.setAttribute("client", client);
         session.setAttribute("username", username);
         // ✅ optional: session timeout
         session.setMaxInactiveInterval(30 * 60); // 30 min

@@ -52,9 +52,10 @@ public class UserServiceImpl implements UserService {
         client.setLastName(webUser.getLastName());
         client.setEmail(webUser.getEmail());
 
-        // 🔥 ADD THESE TWO LINES
         client.setIncome(webUser.getIncome());
         client.setBudget(webUser.getBudget());
+        client.setPhone(webUser.getPhone());
+        client.setWhatsappNumber(webUser.getWhatsappNumber());
 
         User user = new User();
         user.setUserName(webUser.getUsername());

@@ -5,4 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ContactConfigRepository extends JpaRepository<ContactConfig, Integer> {
     ContactConfig findByUserId(int userId);
+
+    ContactConfig findByUserClientId(int clientId);
 }

@@ -1,11 +1,19 @@
 package com.SpringBootMVC.ExpensesTracker.DTO;
 
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
 public class ExpenseDTO {
     private int expenseId;
     private int clientId;
+    @NotBlank(message = "Category is required")
     private String category;
+    @Min(value = 1, message = "Amount must be at least 1")
     private int amount;
+    @NotBlank(message = "Date and time are required")
     private String dateTime;
+    @Size(max = 400, message = "Description can be at most 400 characters")
     private String description;
 
     public ExpenseDTO() {

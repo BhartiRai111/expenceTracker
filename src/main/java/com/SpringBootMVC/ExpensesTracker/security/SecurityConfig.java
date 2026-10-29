@@ -29,7 +29,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http
             , AuthenticationSuccessHandler customAuthenticationSuccessHandler) throws Exception{
-        http.csrf(csrf -> csrf.disable()).authorizeHttpRequests(config ->
+        http.authorizeHttpRequests(config ->
                 config
                         .requestMatchers("/css/**").permitAll()
                         .requestMatchers("/assets/**").permitAll()
@@ -37,7 +37,6 @@ public class SecurityConfig {
                         .requestMatchers("/", "/landing-page").permitAll()
                         .requestMatchers("/showRegistrationForm").permitAll()
                         .requestMatchers("/processRegistration").permitAll()
-                        .requestMatchers("/api/**").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(form ->
                         form
@@ -53,9 +52,9 @@ public class SecurityConfig {
                                 .invalidateHttpSession(true)
                                 .deleteCookies("JSESSIONID")
                 ).sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.ALWAYS) // ✅ FIX
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .sessionFixation().migrateSession()
-                );;
+                );
         return http.build();
     }
 

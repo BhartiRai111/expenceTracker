@@ -163,8 +163,11 @@
                         <div class="text-center" style="margin-top:28px;">
                             <a th:href="@{/showUpdate(expId=${exp.id})}" class="btn btn-info border-light"
                                style="background: #1abc9c; color: white;">Update</a>
-                            <a th:href="@{/delete(expId=${exp.id})}" class="btn btn-danger"
-                               onclick="if(!(confirm('Are you sure you want to delete this expense?'))) return false">Delete</a>
+                            <form th:action="@{/delete}" method="post" class="d-inline"
+                                  onsubmit="return confirm('Are you sure you want to delete this expense?')">
+                                <input type="hidden" name="expId" th:value="${exp.id}">
+                                <button type="submit" class="btn btn-danger">Delete</button>
+                            </form>
                         </div>
                     </div>
                 </div>

@@ -4,13 +4,35 @@
 
 // ================= GLOBAL FUNCTIONS =================
 
-// ✅ Filter function (bahar hona chahiye)
+function csrfHeaders() {
+    const token = document.querySelector('meta[name="_csrf"]');
+    const header = document.querySelector('meta[name="_csrf_header"]');
+    const headers = {"Content-Type": "application/json"};
+    if (token && header) headers[header.content] = token.content;
+    return headers;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ✅ Filter function
 function applyFilter() {
     let from = document.getElementById("fromDate").value;
     let to = document.getElementById("toDate").value;
 
-    fetch(`/dashboard/filter?from=${from}&to=${to}`)
-        .then(res => res.json())
+    if (!from || !to) {
+        alert("Please select both FROM and TO dates");
+        return;
+    }
+
+    fetch(`/dashboard/filter?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+        .then(res => {
+            if (!res.ok) throw new Error("Filter failed");
+            return res.json();
+        })
         .then(data => {
 
             categoryData = data.categoryData;
@@ -25,7 +47,8 @@ function applyFilter() {
 
             // Re-render charts
             renderCharts();
-        });
+        })
+        .catch(() => alert("Could not apply the filter. Please check the dates."));
 }
 
 // ✅ Chart render function (clean version)
@@ -123,22 +146,49 @@ function sendMessage() {
     let chatBox = document.getElementById("chatMessages");
 
     // user message
-    chatBox.innerHTML += `<div><b>You:</b> ${message}</div>`;
+    chatBox.innerHTML += `<div><b>You:</b> ${escapeHtml(message)}</div>`;
 
     fetch("/api/chat", {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
+        headers: csrfHeaders(),
         body: JSON.stringify({ message: message })
     })
-    .then(res => res.json())
+    .then(res => {
+        if (!res.ok) throw new Error("Chat failed");
+        return res.json();
+    })
     .then(data => {
-        chatBox.innerHTML += `<div style="color:green;"><b>Bot:</b> ${data.reply}</div>`;
+        chatBox.innerHTML += `<div style="color:green;"><b>Bot:</b> ${escapeHtml(data.reply)}</div>`;
         chatBox.scrollTop = chatBox.scrollHeight;
+    })
+    .catch(() => {
+        chatBox.innerHTML += `<div style="color:red;"><b>Bot:</b> Sorry, something went wrong.</div>`;
     });
 
     input.value = "";
+}
+
+function suggestCategory() {
+    const description = document.getElementById("description");
+    const suggestion = document.getElementById("aiSuggestion");
+    if (!description || !suggestion || !description.value.trim()) return;
+
+    fetch("/api/suggest-category", {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: JSON.stringify({ description: description.value })
+    })
+    .then(res => res.ok ? res.json() : Promise.reject())
+    .then(data => {
+        suggestion.value = data.category;
+        const select = document.getElementById("expenseCategory");
+        if (select) {
+            for (const option of select.options) {
+                if (option.value === data.category) select.value = data.category;
+            }
+        }
+    })
+    .catch(() => { suggestion.value = ""; });
 }
 
 function exportExcel() {
@@ -162,6 +212,11 @@ function exportExcel() {
 // ================= MAIN =================
 
 window.addEventListener('DOMContentLoaded', event => {
+
+    const descriptionField = document.getElementById('description');
+    if (descriptionField && document.getElementById('aiSuggestion')) {
+        descriptionField.addEventListener('blur', suggestCategory);
+    }
 
     // ================= NAVBAR =================
     var navbarShrink = function () {

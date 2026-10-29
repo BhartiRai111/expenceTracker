@@ -23,20 +23,22 @@ The Expenses Tracker App is a robust financial management solution developed usi
 - **User Authentication and Authorization:** Securely sign up, sign in, and access the app with built-in authentication and authorization.
 - **CRUD Operations:** Perform essential financial tracking actions such as adding, reading, updating, and deleting expenses.
 - **Filtering:** Utilize the filtering feature to efficiently sort and view expenses based on various criteria.
+- **Dashboard:** Category and monthly charts, date-range filter, income/savings overview and Excel export.
+- **Budget alerts:** Email and SMS (Twilio) when the monthly budget is exceeded; the budget can be changed from the dashboard.
+- **AI category suggestion:** Suggests a category from the expense description (needs `OPENAI_API_KEY`).
 
 ## Getting Started
 1. **Clone the Repository:**
 `git clone https://github.com/BhartiRai111/expenses-tracker.git`
 
-2. **Configure Database:**
-Set up MySQL database and update the application.properties file with your database configuration.
+2. **Configure the database and secrets:**
+Create the MySQL schema and seed the categories (`myScript.sql`, first and `INSERT INTO category` statements), then copy `.env.example` to `.env` and fill in your values. `.env` is git-ignored; never commit it.
 
 3. **Build and Run:**
-Build the project using your preferred IDE or with Maven:
-`mvn clean install`.
+`./mvnw clean package`
 
 4. **Run the application:**
-`java -jar target/expenses-tracker.jar`.
+`java -jar target/ExpensesTracker-0.0.1-SNAPSHOT.jar` (or `./mvnw spring-boot:run`).
 
 5. **Access the App:**
 Open your web browser and navigate to `http://localhost:8080`.

@@ -1,5 +1,7 @@
 package com.SpringBootMVC.ExpensesTracker.service;
 
+import com.SpringBootMVC.ExpensesTracker.entity.Client;
+
 public interface AlertService {
-    void sendAlert(int clientId, int totalExpense);
+    void sendAlert(Client client, int totalExpense);
 }

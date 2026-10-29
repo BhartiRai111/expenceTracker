@@ -15,11 +15,11 @@ public class AIController {
 
     @PostMapping("/chat")
     public Map<String, String> chat(@RequestBody Map<String, String> request) {
+        return Map.of("reply", aiService.getChatResponse(request.get("message")));
+    }
 
-        String message = request.get("message");
-
-        String reply = aiService.getChatResponse(message);
-
-        return Map.of("reply", reply);
+    @PostMapping("/suggest-category")
+    public Map<String, String> suggestCategory(@RequestBody Map<String, String> request) {
+        return Map.of("category", aiService.predictCategory(request.get("description")));
     }
 }

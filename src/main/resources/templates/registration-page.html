@@ -87,6 +87,13 @@
                                 </div>
                                 <div class="col-12">
                                     <div class="form-floating mb-3">
+                                        <input type="tel" class="form-control border-0 border-bottom rounded-0"
+                                               id="phone" placeholder="Phone (e.g. +911234567890)" th:field="*{phone}">
+                                        <label for="phone" class="form-label">Phone for SMS alerts (optional)</label>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-floating mb-3">
                                         <input type="password" class="form-control border-0 border-bottom rounded-0"
                                                id="password" value="" placeholder="Password" th:field="*{password}"
                                                required>

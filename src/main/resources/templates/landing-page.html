@@ -24,7 +24,7 @@
 </head>
 <body id="page-top">
 <!-- Navigation-->
-<div th:replace="${session.client != null} ?
+<div th:replace="${#authorization.expression('isAuthenticated()')} ?
 ~{fragments/navbar :: navbar('yes','no','no','yes','yes','yes','yes','yes')}
 :
 ~{fragments/navbar :: navbar('yes','yes','yes','no','no','no','no','no')}">

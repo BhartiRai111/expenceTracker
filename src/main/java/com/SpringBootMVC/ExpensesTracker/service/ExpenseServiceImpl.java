@@ -3,81 +3,70 @@ package com.SpringBootMVC.ExpensesTracker.service;
 import com.SpringBootMVC.ExpensesTracker.DTO.ExpenseDTO;
 import com.SpringBootMVC.ExpensesTracker.DTO.FilterDTO;
 import com.SpringBootMVC.ExpensesTracker.entity.Category;
+import com.SpringBootMVC.ExpensesTracker.entity.Client;
 import com.SpringBootMVC.ExpensesTracker.entity.Expense;
 import com.SpringBootMVC.ExpensesTracker.repository.ExpenseRepository;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.TypedQuery;
-import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
-import java.util.HashMap;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 @Service
 public class ExpenseServiceImpl implements ExpenseService {
     ExpenseRepository expenseRepository;
     ClientService clientService;
     CategoryService categoryService;
-    EntityManager entityManager;
     AlertService alertService;
 
     @Autowired
     public ExpenseServiceImpl(ExpenseRepository expenseRepository, ClientService clientService
-            , CategoryService categoryService, EntityManager entityManager, AlertService alertService) {
+            , CategoryService categoryService, AlertService alertService) {
         this.expenseRepository = expenseRepository;
         this.clientService = clientService;
         this.categoryService = categoryService;
-        this.entityManager = entityManager;
         this.alertService = alertService;
     }
 
-
     @Override
-    public Expense findExpenseById(int id) {
-        return expenseRepository.findById(id).orElse(null);
+    public Expense findExpenseById(int id, int clientId) {
+        return expenseRepository.findByIdAndClientId(id, clientId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Expense not found"));
     }
 
     @Transactional
     @Override
     public void save(ExpenseDTO expenseDTO) {
-        System.out.println(expenseDTO);
+        Client client = requireClient(expenseDTO.getClientId());
         Expense expense = new Expense();
-        expense.setAmount(expenseDTO.getAmount());
-        expense.setDateTime(expenseDTO.getDateTime());
-        expense.setDescription(expenseDTO.getDescription());
-        expense.setClient(clientService.findClientById(expenseDTO.getClientId()));
-        Category category = categoryService.findCategoryByName(expenseDTO.getCategory());
-        expense.setCategory(category);
-        expenseRepository.save(expense);
-        // 🔥 NEW CODE START
-        // 👇 client fetch
-        var client = clientService.findClientById(expenseDTO.getClientId());
+        apply(expense, expenseDTO);
         expense.setClient(client);
-        int totalExpense = getThisMonthExpense(client.getId());
-        if (totalExpense > client.getBudget() && !client.isAlertSent()) {
-            alertService.sendAlert(client.getId(), totalExpense);
-            client.setAlertSent(true);
-            clientService.saveClient(client);
-        }
+        expenseRepository.save(expense);
+        checkBudget(client);
     }
 
+    @Transactional
     @Override
     public void update(ExpenseDTO expenseDTO) {
-        Expense existingExpense = expenseRepository.findById(expenseDTO.getExpenseId()).orElse(null);
-        existingExpense.setAmount(expenseDTO.getAmount());
-        existingExpense.setDateTime(expenseDTO.getDateTime());
-        existingExpense.setDescription(expenseDTO.getDescription());
-        Category category = categoryService.findCategoryByName(expenseDTO.getCategory());
-        existingExpense.setCategory(category);
-        expenseRepository.save(existingExpense);
+        Expense existing = findExpenseById(expenseDTO.getExpenseId(), expenseDTO.getClientId());
+        apply(existing, expenseDTO);
+        expenseRepository.save(existing);
+        checkBudget(existing.getClient());
     }
 
+    @Transactional
     @Override
-    public List<Expense> findAllExpenses() {
-        return expenseRepository.findAll();
+    public void deleteExpenseById(int id, int clientId) {
+        Expense existing = findExpenseById(id, clientId);
+        expenseRepository.delete(existing);
+        checkBudget(existing.getClient());
     }
 
     @Override
@@ -86,79 +75,41 @@ public class ExpenseServiceImpl implements ExpenseService {
     }
 
     @Override
-    public void deleteExpenseById(int id) {
-        expenseRepository.deleteById(id);
-    }
-
-    @Override
-    public List<Expense> findFilterResult(FilterDTO filter) {
-        String query = "select e from Expense e where";
-        if (!"all".equals(filter.getCategory())) {
-            String category = filter.getCategory();
-            int categoryId = categoryService.findCategoryByName(category).getId();
-            query += String.format(" e.category.id = %d AND", categoryId);
+    public List<Expense> findFilterResult(int clientId, FilterDTO filter) {
+        Integer categoryId = null;
+        if (!isAll(filter.getCategory())) {
+            Category category = categoryService.findCategoryByName(filter.getCategory());
+            if (category == null) {
+                return List.of();
+            }
+            categoryId = category.getId();
         }
-        int from = filter.getFrom();
-        int to = filter.getTo();
-        query += String.format(" e.amount between %d and %d", from, to);
-        if (!"all".equals(filter.getYear())) {
-            query += String.format(" AND CAST(SUBSTRING(e.dateTime, 1, 4) AS INTEGER) = %s", filter.getYear());
+        String year = isAll(filter.getYear()) ? null : filter.getYear().trim();
+        String month = null;
+        if (!isAll(filter.getMonth())) {
+            month = String.format("%02d", parseMonth(filter.getMonth()));
         }
-        if (!"all".equals(filter.getMonth())) {
-            query += String.format(" AND CAST(SUBSTRING(e.dateTime, 6, 2) AS INTEGER) = %s", filter.getMonth());
-        }
-        TypedQuery<Expense> expenseTypedQuery = entityManager.createQuery(query, Expense.class);
-        List<Expense> expenseList = expenseTypedQuery.getResultList();
-        return expenseList;
+        return expenseRepository.filter(clientId, categoryId, filter.getFrom(), filter.getTo(), year, month);
     }
 
     @Override
     public Map<String, Integer> getCategorySummary(int clientId) {
-
-        List<Expense> list = expenseRepository.findByClientId(clientId);
-
-        Map<String, Integer> map = new HashMap<>();
-
-        for (Expense e : list) {
-            String category = e.getCategory().getName();
-            map.put(category, map.getOrDefault(category, 0) + e.getAmount());
-        }
-
-        return map;
+        return toMap(expenseRepository.sumByCategory(clientId));
     }
 
     @Override
     public Map<String, Integer> getMonthlySummary(int clientId) {
-
-        List<Expense> list = expenseRepository.findByClientId(clientId);
-
-        Map<String, Integer> map = new HashMap<>();
-
-        for (Expense e : list) {
-
-            // "2026-04-19T12:30"
-            String month = e.getDateTime().substring(0, 7); // YYYY-MM
-
-            map.put(month, map.getOrDefault(month, 0) + e.getAmount());
-        }
-
-        return map;
+        return toMap(expenseRepository.sumByMonth(clientId));
     }
 
     @Override
     public int getThisMonthExpense(int clientId) {
-
-        Map<String, Integer> map = getMonthlySummary(clientId);
-
-        String currentMonth = java.time.LocalDate.now().toString().substring(0, 7);
-
-        return map.getOrDefault(currentMonth, 0);
+        return (int) expenseRepository.sumForMonth(clientId, LocalDate.now().toString().substring(0, 7));
     }
 
     @Override
     public String getHighestCategory(int clientId) {
-        Map<String, Integer> map = getCategorySummary(clientId);
-        return map.entrySet()
+        return getCategorySummary(clientId).entrySet()
                 .stream()
                 .max(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey)
@@ -167,41 +118,87 @@ public class ExpenseServiceImpl implements ExpenseService {
 
     @Override
     public Map<String, Integer> getCategorySummaryByDate(int clientId, String from, String to) {
-        List<Expense> list = expenseRepository.findByClientId(clientId);
-        Map<String, Integer> map = new HashMap<>();
-        for (Expense e : list) {
-            String date = e.getDateTime().substring(0, 10);
-            if (date.compareTo(from) >= 0 && date.compareTo(to) <= 0) {
-                String category = e.getCategory().getName();
-                map.put(category, map.getOrDefault(category, 0) + e.getAmount());
-            }
-        }
-        return map;
+        validateRange(from, to);
+        return toMap(expenseRepository.sumByCategoryBetween(clientId, from, to));
     }
 
     @Override
     public Map<String, Integer> getMonthlySummaryByDate(int clientId, String from, String to) {
-        List<Expense> list = expenseRepository.findByClientId(clientId);
-        Map<String, Integer> map = new HashMap<>();
-        for (Expense e : list) {
-            String date = e.getDateTime().substring(0, 10);
-            if (date.compareTo(from) >= 0 && date.compareTo(to) <= 0) {
-                String month = e.getDateTime().substring(0, 7);
-                map.put(month, map.getOrDefault(month, 0) + e.getAmount());
-            }
-        }
-        return map;
+        validateRange(from, to);
+        return toMap(expenseRepository.sumByMonthBetween(clientId, from, to));
     }
 
     @Override
     public List<Expense> findExpensesByDate(int clientId, String from, String to) {
-        List<Expense> list = expenseRepository.findByClientId(clientId);
-        LocalDate fromDate = LocalDate.parse(from);
-        LocalDate toDate = LocalDate.parse(to);
-        return list.stream().filter(e -> {
-            LocalDate expenseDate = LocalDate.parse(e.getDateTime().substring(0, 10));
-            return !expenseDate.isBefore(fromDate) && !expenseDate.isAfter(toDate);
-        }).toList();
+        validateRange(from, to);
+        return expenseRepository.findBetween(clientId, from, to);
     }
 
+    /** Sends the budget alert once when the limit is crossed and re-arms it when spend drops back. */
+    private void checkBudget(Client client) {
+        int total = getThisMonthExpense(client.getId());
+        if (total > client.getBudget() && !client.isAlertSent()) {
+            client.setAlertSent(true);
+            clientService.saveClient(client);
+            alertService.sendAlert(client, total);
+        } else if (total <= client.getBudget() && client.isAlertSent()) {
+            client.setAlertSent(false);
+            clientService.saveClient(client);
+        }
+    }
+
+    private void apply(Expense expense, ExpenseDTO dto) {
+        Category category = categoryService.findCategoryByName(dto.getCategory());
+        if (category == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown category: " + dto.getCategory());
+        }
+        try {
+            LocalDateTime.parse(dto.getDateTime());
+        } catch (DateTimeParseException | NullPointerException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date/time");
+        }
+        expense.setAmount(dto.getAmount());
+        expense.setDateTime(dto.getDateTime());
+        expense.setDescription(dto.getDescription());
+        expense.setCategory(category);
+    }
+
+    private Client requireClient(int clientId) {
+        Client client = clientService.findClientById(clientId);
+        if (client == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found");
+        }
+        return client;
+    }
+
+    private static boolean isAll(String value) {
+        return value == null || value.isBlank() || "all".equalsIgnoreCase(value);
+    }
+
+    private static int parseMonth(String value) {
+        try {
+            int month = Integer.parseInt(value.trim());
+            if (month < 1 || month > 12) throw new NumberFormatException();
+            return month;
+        } catch (NumberFormatException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid month");
+        }
+    }
+
+    private static void validateRange(String from, String to) {
+        try {
+            LocalDate.parse(from);
+            LocalDate.parse(to);
+        } catch (DateTimeParseException | NullPointerException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Dates must be yyyy-MM-dd");
+        }
+    }
+
+    private static Map<String, Integer> toMap(List<Object[]> rows) {
+        Map<String, Integer> map = new TreeMap<>();
+        for (Object[] row : rows) {
+            map.put((String) row[0], ((Number) row[1]).intValue());
+        }
+        return map;
+    }
 }
